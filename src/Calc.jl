@@ -1,5 +1,5 @@
 module Calc
 
-# package code goes here
+include("repl.jl")
 
 end # module
