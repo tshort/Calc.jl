@@ -63,44 +63,6 @@ end
 ## Copyright (c) 2015: Keno Fischer. Licensed under the MIT "Expat" License:
 ##    https://github.com/Keno/Gallium.jl/blob/b4bc668a4cbd0f2d4f63fbdb0597a1264afd7b4d/LICENSE.md
 
-function setupinput()
-    repl = Base.active_repl
-    mirepl = isdefined(repl,:mi) ? repl.mi : repl
-    main_mode = mirepl.interface.modes[1]
-    # Setup the panel for input
-    inputpanel = LineEdit.Prompt(">>>>> ";
-        prompt_prefix = Base.text_colors[:cyan],
-        prompt_suffix = main_mode.prompt_suffix,
-        on_enter = s -> true)
-    inputpanel.on_done = REPL.respond(repl, inputpanel; pass_empty = false) do line
-        isempty(line) ? :() : line
-    end
-    hp = main_mode.hist
-    hp.mode_mapping[:input] = inputpanel
-    inputpanel.hist = hp
-    search_prompt, skeymap = LineEdit.setup_search_keymap(hp)
-    mk = REPL.mode_keymap(main_mode)
-    b = Dict{Any,Any}[skeymap, mk, LineEdit.history_keymap, LineEdit.default_keymap, LineEdit.escape_defaults]
-    inputpanel.keymap_dict = LineEdit.keymap(b)
-    inputpanel
-end
-
-inputpanel = setupinput()
-
-function input(fun::Function, s, prompt::AbstractString)
-    println()
-    repl = Base.active_repl
-    inputpanel.prompt = prompt
-    inputpanel.on_done = REPL.respond(repl, inputpanel; pass_empty = false) do line
-        :( $(fun(line)) )
-    end
-    if !haskey(s.mode_state, inputpanel)
-        s.mode_state[inputpanel] = LineEdit.init_state(repl.t, inputpanel)
-    end
-    LineEdit.transition(s, inputpanel)
-    :done
-end
-
 function initiate_calc_repl()
     repl = Base.active_repl
     mirepl = isdefined(repl,:mi) ? repl.mi : repl
@@ -129,20 +91,22 @@ function initiate_calc_repl()
         prompt_prefix = Base.text_colors[:blue],
         prompt_suffix = main_mode.prompt_suffix,
         on_enter = Base.REPL.return_callback)
-
+    panel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
+        :(  )
+    end
     # Setup the alternate repl panel for algebraic entry
-    apanel = LineEdit.Prompt("calc= ";
-        prompt_prefix = Base.text_colors[:magenta],
+    # Setup the panel for input
+    inputpanel = LineEdit.Prompt(">>>>> ";
+        prompt_prefix = Base.text_colors[:cyan],
         prompt_suffix = main_mode.prompt_suffix,
         on_enter = s -> true)
+    inputpanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
+        isempty(line) ? :() : line
+    end
 
     hp = main_mode.hist
     hp.mode_mapping[:calc] = panel
     panel.hist = hp
-    
-    panel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
-        :(  )
-    end
     
     push!(mirepl.interface.modes, panel)
 
@@ -150,6 +114,18 @@ function initiate_calc_repl()
     mk = REPL.mode_keymap(main_mode)
 
     b = Dict{Any,Any}[skeymap, mk, LineEdit.history_keymap, LineEdit.default_keymap, LineEdit.escape_defaults]
+    
+    function input(fun::Function, s, prompt::AbstractString)
+        repl = Base.active_repl
+        inputpanel.prompt = prompt
+        inputpanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
+            :( $(fun(line)) )
+        end
+        if !haskey(s.mode_state, inputpanel)
+            s.mode_state[inputpanel] = LineEdit.init_state(repl.t, inputpanel)
+        end
+        LineEdit.transition(s, inputpanel)
+    end
 
     const calc_keymap = Dict{Any,Any}(
     # arithmetic
@@ -212,8 +188,13 @@ function initiate_calc_repl()
         "uS" => calcfun(std, 1),
         "HuS" => calcfun(var, 1),
     # storing/recalling
+        # store x in the prompted variable
         "ss" => (s, o...) -> input(s, "Variable name> ") do x
                     eval(Main, Expr(:(=), Symbol(x), activestack()[end]))
+                end,
+        # store the whole stack in the prompted variable
+        "sS" => (s, o...) -> input(s, "Variable name> ") do x
+                    eval(Main, Expr(:(=), Symbol(x), activestack()))
                 end,
     # general
         # delete
@@ -241,31 +222,20 @@ function initiate_calc_repl()
                     :done
                 end,
         # trigger algebraic entry
-        "x" => (s, o...) -> input(s, "calc= ") do line
+        "=" => (s, o...) -> input(s, "calc= ") do line
                     stack = copy(Calc.activestack())
                     push!(stack, eval(Main, fixrefs(line)))
                     Calc.advance(stack)
                     Calc.showstack()
-                end,
-        # trigger algebraic entry
-        "=" => function (s,args...)
-            if isempty(s)
-                if !haskey(s.mode_state, apanel)
-                    s.mode_state[apanel] = LineEdit.init_state(repl.t, apanel)
                 end
-                LineEdit.transition(s, apanel)
-            else
-                LineEdit.edit_insert(s,'=')
-            end
-        end
     )
     
     main_mode.keymap_dict = LineEdit.keymap_merge(main_mode.keymap_dict, calc_launch_keymap)
     panel.keymap_dict = LineEdit.keymap_merge(LineEdit.keymap(b), calc_keymap)
     
-    # Finish the alternate repl panel
-    hp.mode_mapping[:acalc] = apanel
-    apanel.hist = hp
+    # Finish the input repl panel
+    hp.mode_mapping[:input] = inputpanel
+    inputpanel.hist = hp
 
    # Convert _1, _2, ... to stack references    
     fixrefs(x) = x
@@ -284,22 +254,7 @@ function initiate_calc_repl()
         end
     end
 
-    apanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
-        if !isempty(line)
-            quote
-                stack = copy(Calc.activestack())
-                push!(stack, $(fixrefs(line)))
-                Calc.advance(stack)
-                Calc.showstack()
-            end
-        else
-            :(  )
-        end
-    end
-
-    push!(mirepl.interface.modes, apanel)
-    apanel.keymap_dict = LineEdit.keymap(b)
-    
+    push!(mirepl.interface.modes, inputpanel)
     inputpanel.keymap_dict = LineEdit.keymap(b)
     
     nothing
