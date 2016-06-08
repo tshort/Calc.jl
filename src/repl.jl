@@ -1,21 +1,45 @@
 
 import Base: LineEdit, REPL
 
+type CalcStack <: AbstractArray{Any, 1}
+    x::Array{Any}
+end
+CalcStack() = CalcStack(Any[])
+Base.getindex(s::CalcStack, i) = s.x[i]
+Base.setindex!(s::CalcStack, x, i) = setindex!(s.x, x, i)
+Base.size(s::CalcStack, o...) = size(s.x, o...)
+Base.linearindexing(::Type{CalcStack}) = Base.LinearFast()
+Base.similar(s::CalcStack) = CalcStack()
+Base.push!(s::CalcStack, x) = push!(s.x, x)
+Base.splice!(s::CalcStack, i) = splice!(s.x, i)
+Base.copy(s::CalcStack) = CalcStack(copy(s.x))
+function Base.show(s::CalcStack)
+    println()
+    println()
+    n = length(s)
+    for i in 1:n
+        print(n-i+1, ": ")
+        printelement(s.x[i])
+        println()
+    end
+    if n == 0 
+        println(".")
+    end
+end    
+
+printelement(x) = print(x)
+printelement(x::Complex) = state.usepolar ? print(abs(x), "∠", rad2deg(angle(x)), "°") : print(x)
+
 type CalcState
-    history::Array{Array{Any}}
+    history::Array{CalcStack}
     position::Int
+    usedegrees::Bool
+    usepolar::Bool
 end
 
-const state = CalcState(Any[Any[]], 1)
+const state = CalcState(CalcStack[CalcStack()], 1, true, true)
 
 activestack() = state.history[state.position]
-
-function showstack()
-    println()
-    println()
-    show(activestack())
-    println()
-end
 
 function advance(stack)
     if stack != activestack()
@@ -50,10 +74,10 @@ function calcfun(fun, n = 0, splatoutput = false)
                 push!(stack, fun(args...))
             end
         else       # Negative: pass and return the whole stack
-            stack = fun(stack)
+            stack.x = fun(stack.x)
         end
         advance(stack)
-        showstack()
+        show(activestack())
         :done
     end
 end
@@ -76,8 +100,9 @@ function initiate_calc_repl()
                     s.mode_state[panel] = LineEdit.init_state(repl.t, panel)
                 end
                 println()
-                println("Calculator stack")
-                showstack()
+                print("Calculator stack")
+                show(activestack())
+                println()
                 LineEdit.transition(s,panel)
             else
                 LineEdit.edit_insert(s,'=')
@@ -155,16 +180,21 @@ function initiate_calc_repl()
         "I^" => calcfun((x, y) -> y ^ (1/x), 2),
         "fh" => calcfun((x, y) -> sqrt(x^2 + y^2), 2),
     # trig
-        "S" => calcfun(sind, 1),
-        "C" => calcfun(cosd, 1),
-        "T" => calcfun(tand, 1),
-        "IS" => calcfun(asind, 1),
-        "IC" => calcfun(acosd, 1),
-        "IT" => calcfun(atand, 1),
+        "S" => calcfun(x -> state.usedegrees ? sind(x) : sin(x), 1),
+        "C" => calcfun(x -> state.usedegrees ? cosd(x) : cos(x), 1),
+        "T" => calcfun(x -> state.usedegrees ? tand(x) : tan(x), 1),
+        "IS" => calcfun(x -> state.usedegrees ? asind(x) : asin(x), 1),
+        "IC" => calcfun(x -> state.usedegrees ? acosd(x) : acos(x), 1),
+        "IT" => calcfun(x -> state.usedegrees ? atand(x) : atan(x), 1),
         "P" => calcfun(() -> pi, 0),
+    # settings
+        "mr" =>  (s, o...) -> (println("\nUsing radians..."); state.usedegrees = false; :done),
+        "md" =>  (s, o...) -> (println("\nUsing degrees..."); state.usedegrees = true; :done),
+        "mp" =>  (s, o...) -> (println("\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); state.usepolar = !state.usepolar; :done),
     # complex numbers
         "X" => calcfun(complex, 2),
-        "Z" => calcfun((x, y) -> x * exp(1.0im * y * π / 180), 2),
+        # polar entry with y in degrees
+        "Z" => calcfun((x, y) -> x * exp(1.0im * y * π / 180), 2),  
         "J" => calcfun(conj, 1),
         "G" => calcfun(angle, 1),
         "fr" => calcfun(real, 1),
@@ -200,7 +230,7 @@ function initiate_calc_repl()
         # delete
         "\e[3~" => (s,o...)-> eof(LineEdit.buffer(s)) ? calcfun((stack) -> stack[1:end-1], -1)(s,o...) : LineEdit.edit_delete(s),
         # tab - swap x & y on the stack
-        "\t" => calcfun((x, y) -> [y, x], 2, true),
+        "\t" => calcfun((x, y) -> Any[y, x], 2, true),
         # space / Enter for stack entry
         " " => calcfun(x -> x, -1),
         "\r" => LineEdit.KeyAlias(" "),
@@ -210,7 +240,7 @@ function initiate_calc_repl()
                     if state.position > 1
                         state.position -= 1
                     end
-                    showstack()
+                    show(activestack())
                     :done
                 end,
         # redo
@@ -218,7 +248,7 @@ function initiate_calc_repl()
                     if state.position < length(state.history)
                         state.position += 1
                     end
-                    showstack()
+                    show(activestack())
                     :done
                 end,
         # trigger algebraic entry
@@ -226,7 +256,7 @@ function initiate_calc_repl()
                     stack = copy(Calc.activestack())
                     push!(stack, eval(Main, fixrefs(line)))
                     Calc.advance(stack)
-                    Calc.showstack()
+                    show(activestack())
                 end
     )
     
