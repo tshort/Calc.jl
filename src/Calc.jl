@@ -16,7 +16,7 @@ Base.splice!(s::CalcStack, i) = splice!(s.x, i)
 Base.copy(s::CalcStack) = CalcStack(copy(s.x))
 function Base.show(s::CalcStack)
     println()
-    println()
+    println("Stack [$(state.usedegrees ? "deg" : "rad")|$(state.usepolar ? "polr" : "rect")]")
     n = length(s)
     for i in 1:n
         print(n-i+1, ": ")
@@ -28,8 +28,9 @@ function Base.show(s::CalcStack)
     end
 end    
 
-printelement(x) = print(x)
-printelement(x::Complex) = state.usepolar ? print(abs(x), "∠", rad2deg(angle(x)), "°") : print(x)
+cs(x) = sprint(showcompact, x)
+printelement(x) = showcompact(x)
+printelement(x::Complex) = state.usepolar ? print("$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : showcompact(x)
 
 type CalcState
     history::Array{CalcStack}
@@ -38,7 +39,7 @@ type CalcState
     usepolar::Bool
 end
 
-const state = CalcState(CalcStack[CalcStack()], 1, true, true)
+const state = CalcState(CalcStack[CalcStack()], 1, true, false)
 
 activestack() = state.history[state.position]
 
@@ -58,6 +59,7 @@ end
 
 function calcfun(fun, n = 0, splatoutput = false)
     (s, args...) -> begin
+        println()
         stack = copy(activestack())
         b = LineEdit.buffer(s)
         newval = eval(Main, Base.parse_input_line(takebuf_string(b)))
@@ -101,7 +103,7 @@ function initiate_calc_repl()
                     s.mode_state[panel] = LineEdit.init_state(repl.t, panel)
                 end
                 println()
-                print("Calculator stack")
+                println()
                 show(activestack())
                 println()
                 LineEdit.transition(s,panel)
@@ -191,13 +193,13 @@ function initiate_calc_repl()
     # settings
         "mr" =>  (s, o...) -> (println("\nUsing radians..."); state.usedegrees = false; :done),
         "md" =>  (s, o...) -> (println("\nUsing degrees..."); state.usedegrees = true; :done),
-        "mp" =>  (s, o...) -> (println("\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); state.usepolar = !state.usepolar; :done),
+        "mp" =>  (s, o...) -> (state.usepolar = !state.usepolar; println("\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); :done),
     # complex numbers
         "X" => calcfun(complex, 2),
         # polar entry with y in degrees
         "Z" => calcfun((x, y) -> x * exp(1.0im * y * π / 180), 2),  
         "J" => calcfun(conj, 1),
-        "G" => calcfun(angle, 1),
+        "G" => calcfun(x -> state.usedegrees ? rad2deg(angle(x)) : angle(x), 1),
         "fr" => calcfun(real, 1),
         "fi" => calcfun(imag, 1),
     # percentages
