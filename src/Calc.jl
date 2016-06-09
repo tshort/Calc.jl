@@ -281,7 +281,7 @@ function initiate_calc_repl()
         end
         n = try parse(st[2:end]) catch "" end
         if isa(n, Integer) && n > 0
-            return :(stack[end - $n + 1])
+            return :( $activestack()[end - $n + 1] )
         else
             return s
         end
