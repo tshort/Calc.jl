@@ -117,16 +117,16 @@ These trig functions use radian equivalents when in radian mode.
 | `md`  | Using degrees                                    |
 | `mp`  | Toggle between polar and rectangular coordinates |
 #### Complex numbers
-| key   | operation                            |
-| ----- | ----------                           |
-| `X`   | `complex(y, x)`                      |
-| `IX`  | the real and imaginary partse of `x` |
-| `Z`   | `y∠x`, polar entry with y in degrees |
-| `IZ`  | the magnitude and angle of `x`       |
-| `J`   | `conj(x)`                            |
-| `G`   | `angle(x)`                           |
-| `fr`  | `real(x)`                            |
-| `fi`  | `imag(x)`                            |
+| key   | operation                              |
+| ----- | ----------                             |
+| `X`   | `complex(y, x)`                        |
+| `IX`  | the real and imaginary partse of `x`   |
+| `Z`   | `y∠x`, polar entry with `x` in degrees |
+| `IZ`  | the magnitude and angle of `x`         |
+| `J`   | `conj(x)`                              |
+| `G`   | `angle(x)`                             |
+| `fr`  | `real(x)`                              |
+| `fi`  | `imag(x)`                              |
 #### Percentages
 | key        | operation                                    |
 | -----      | ----------                                   |
