@@ -1,7 +1,5 @@
 ## Calc - an RPN calculator for the Julia REPL
 
-[![Build Status](https://travis-ci.org/tshort/Calc.jl.svg?branch=master)](https://travis-ci.org/tshort/Calc.jl)
-
 This Julia package implements an RPN calculator for use at the Julia command
 line (the REPL). The reverse-polish notation is popular with some scientific
 calculators. See the [HP 48](http://www.ces.clemson.edu/ge/staff/park/Class/ENGR130/Handouts/BasicSkills/Calculators/HP48G/HP48G.html)
@@ -45,6 +43,17 @@ and so on.
 In the following, `x` is the top value on the stack, and `y` is the second value
 on the stack.
 
+Many multi-key sequences start with prefixes with the following meanings:
+
+| prefix | meaning                     |
+| -------| --------------------------- |
+| `I`    | Inverse                     |
+| `H`    | Hyperbolic (other uses too) |
+| `f`    | Function                    |
+| `m`    | Mode                        |
+| `u`    | Statistics                  |
+| `s`    | Store                       |
+
 #### General
 
 | key           | operation                   |
@@ -59,21 +68,21 @@ on the stack.
 | `<backspace>` | Exit the calculator         |
 
 #### Arithmetic
-| key   | operation     |
-| ----- | ------------- |
-| `+`   | `y + x`       |
-| `-`   | `y - x`       |
-| `n`   | `-x`,  negate |
-| `*`   | `y * x`       |
-| `/`   | `y / x`       |
-| `&`   | `1/x`         |
-| `%`   | `y % x`       |
-| `A`   | `abs(x)`      |
-| `fs`  | `sign(x)`     |
-| `fn`  | `min(y, x)`   |
-| `fx`  | `max(y, x)`   |
-| `f[`  | `x - 1`       |
-| `f]`  | `x + 1`       |
+| key   | operation          |
+| ----- | -------------      |
+| `+`   | `y + x`            |
+| `-`   | `y - x`            |
+| `n`   | `-x`,  negate      |
+| `*`   | `y * x`            |
+| `/`   | `y / x`            |
+| `&`   | `1/x`              |
+| `%`   | `y % x`, remainder |
+| `A`   | `abs(x)`           |
+| `fs`  | `sign(x)`          |
+| `fn`  | `min(y, x)`        |
+| `fx`  | `max(y, x)`        |
+| `f[`  | `x - 1`            |
+| `f]`  | `x + 1`            |
 #### Algebraic
 | key    | operation         |
 | ------ | ----------------- |
@@ -84,9 +93,9 @@ on the stack.
 | `IL`   | `exp(x)`          |
 | `HL`   | `log10(x)`        |
 | `IHL`  | `10^x`            |
-| `B`    | `log(y, x)`       |
+| `B`    | `log(x, y)`       |
 | `^`    | `y^x`             |
-| `I^`   | `y ^ (1/x)`       |
+| `I^`   | `y^(1/x)`         |
 | `fh`   | `sqrt(x^2 + y^2)` |
 
 #### Trig
@@ -110,18 +119,20 @@ These trig functions use radian equivalents when in radian mode.
 #### Complex numbers
 | key   | operation                            |
 | ----- | ----------                           |
-| `X"   | `complex(y, x)`                      |
+| `X`   | `complex(y, x)`                      |
+| `IX`  | the real and imaginary partse of `x` |
 | `Z`   | `y∠x`, polar entry with y in degrees |
-| `J"   | `conj(x)`                            |
-| `G"   | `angle(x)`                           |
-| `fr"  | `real(x)`                            |
-| `fi"  | `imag(x)`                            |
+| `IZ`  | the magnitude and angle of `x`       |
+| `J`   | `conj(x)`                            |
+| `G`   | `angle(x)`                           |
+| `fr`  | `real(x)`                            |
+| `fi`  | `imag(x)`                            |
 #### Percentages
 | key        | operation                                    |
 | -----      | ----------                                   |
 | `<meta-%>` | `x/100`, convert from a percentage           |
 | `c%`       | `100x`, convert to a percentage              |
-| `b%`       | `100(y-x)/x`, percent change from `x` to `y` |
+| `b%`       | `100(x-y)/y`, percent change from `y` to `x` |
 #### Vectors
 | key    | operation                    |
 | -----  | ----------                   |
@@ -141,7 +152,25 @@ These trig functions use radian equivalents when in radian mode.
 | `uS`   | `std(x)`     |
 | `HuS`  | `var(x)`     |
 #### Storing
-| key   | operation                                      |
-| ----- | ----------                                     |
-| `ss`  | Store `x` in the prompted variable             |
-| `sS`  | Store the whole stack in the prompted variable |
+| key        | operation                                      |
+| -----      | ----------                                     |
+| `ss`       | Store `x` in the prompted variable             |
+| `sS`       | Store the whole stack in the prompted variable |
+| `<meta-k>` | Copy `x` to the clipboard                      |
+| `<ctrl-k>` | Pop `x` to the clipboard                       |
+
+## Defining keys
+
+Keys can be defined or redefined with `Calc.setkeys` by passing a keymap
+dictionary. Here is an example to map the key sequence `fp` to an operation
+that finds the parallel combination of impedances of the first two arguments on
+the stack:
+
+```julia
+Calc.setkeys(Dict("fp" => Calc.calcfun((y, x) -> 1 / (1/y + 1/x), 2)))
+```
+
+`Calc.calcfun` is the main function for defining operations. The first argument
+is the function that performs the operation, and the second argument is the
+number of arguments to that function. Neither `Calc.setkeys` nor `Calc.calcfun`
+are exported. 

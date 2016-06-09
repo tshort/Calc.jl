@@ -34,12 +34,13 @@ printelement(x::Complex) = state.usepolar ? print("$(cs(abs(x)))∠$(cs(rad2deg(
 
 type CalcState
     history::Array{CalcStack}
+    panel
     position::Int
     usedegrees::Bool
     usepolar::Bool
 end
 
-const state = CalcState(CalcStack[CalcStack()], 1, true, false)
+const state = CalcState(CalcStack[CalcStack()], 0, 1, true, false)
 
 activestack() = state.history[state.position]
 
@@ -57,6 +58,42 @@ function advance(stack)
     end
 end
 
+"""
+    calcfun(fun, n = 0, splatoutput = false)
+
+where
+
+* `fun` : defines the operation using the stack.
+* `n`   : number of stack elements to pass to `fun`. If negative, pass the whole 
+          stack.
+* `splatoutput` : if `true`, splat the results back on to the stack. This is
+          useful for vector operations and entering multiple values on the
+          stack.
+
+As part of this operation, `n` elements are removed from the stack.
+
+With one argument (`n == 1`), the top of the stack `x` is passed to `fun`. 
+With `n > 1`, the top `n` stack elements are passed to `fun` in reverse order.
+By convention, `x` is the top of the stack, and `y` is the second element, so
+`function(y, x)` is the appropriate order for two arguments. 
+
+Here are examples taken from the core key definitions using `setkeys`:
+
+```julia
+Calc.setkeys(Dict(
+    "P"  => Calc.calcfun(() -> pi, 0),
+    "Q"  => Calc.calcfun(sqrt, 1),
+    "-"  => Calc.calcfun(-, 2),
+    "n"  => Calc.calcfun(-, 1),   # negate
+    # tab - swap x & y on the stack
+    "\t" => Calc.calcfun((y, x) -> Any[x, y], 2, true),
+    "fs" => Calc.calcfun(sign, 1),
+    # pack the stack into a vector
+    "Vp" => Calc.calcfun(x -> Any[x], -1)
+))
+```
+Returns a function for use in a keymap.
+"""
 function calcfun(fun, n = 0, splatoutput = false)
     (s, args...) -> begin
         println()
@@ -71,10 +108,13 @@ function calcfun(fun, n = 0, splatoutput = false)
         if n ≥ 0 
             ns = length(stack)
             args = splice!(stack, ns-n+1:ns)
-            if splatoutput
-                push!(stack, fun(args...)...)
-            else
-                push!(stack, fun(args...))
+            val = fun(args...)
+            if val != nothing
+                if splatoutput
+                    push!(stack, val...)
+                else
+                    push!(stack, val)
+                end
             end
         else       # Negative: pass and return the whole stack
             stack.x = fun(stack.x)
@@ -178,10 +218,10 @@ function initiate_calc_repl()
         "IL" => calcfun(exp, 1),
         "HL" => calcfun(log10, 1),
         "IHL" => calcfun(x -> 10^x, 1),
-        "B" => calcfun((x ,y) -> log(y, x), 2),
+        "B" => calcfun((y, x) -> log(x, y), 2),
         "^" => calcfun(^, 2),
-        "I^" => calcfun((x, y) -> y ^ (1/x), 2),
-        "fh" => calcfun((x, y) -> sqrt(x^2 + y^2), 2),
+        "I^" => calcfun((y, x) -> y ^ (1/x), 2),
+        "fh" => calcfun((y, x) -> sqrt(y^2 + x^2), 2),
     # trig
         "S" => calcfun(x -> state.usedegrees ? sind(x) : sin(x), 1),
         "C" => calcfun(x -> state.usedegrees ? cosd(x) : cos(x), 1),
@@ -196,8 +236,10 @@ function initiate_calc_repl()
         "mp" =>  (s, o...) -> (state.usepolar = !state.usepolar; println("\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); :done),
     # complex numbers
         "X" => calcfun(complex, 2),
+        "IX" => calcfun(x -> [real(x), imag(x)], 1, true),
         # polar entry with y in degrees
-        "Z" => calcfun((x, y) -> x * exp(1.0im * y * π / 180), 2),  
+        "Z" => calcfun((y, x) -> y * exp(1.0im * x * π / 180), 2),  
+        "IZ" => calcfun(x -> [abs(x), rad2deg(angle(x))], 1, true),
         "J" => calcfun(conj, 1),
         "G" => calcfun(x -> state.usedegrees ? rad2deg(angle(x)) : angle(x), 1),
         "fr" => calcfun(real, 1),
@@ -205,7 +247,7 @@ function initiate_calc_repl()
     # percentages
         "\e%" => calcfun(x -> x/100, 1),
         "c%" => calcfun(x -> 100x, 1),
-        "b%" => calcfun((x, y) -> 100(y-x)/x, 2),
+        "b%" => calcfun((y, x) -> 100(x-y)/y, 2),
     # vectors
         "|" => calcfun(vcat, 2),
         "Vu" => calcfun(x -> x, 1, true),
@@ -230,10 +272,14 @@ function initiate_calc_repl()
                     eval(Main, Expr(:(=), Symbol(x), activestack()))
                 end,
     # general
+        # Meta-k - Copy `x` to the clipboard
+        "\ek" => calcfun(x -> (clipboard(x); x), 1),
+        # Ctrl-k - Pop `x` to the clipboard -- not sure why "^K" doesn't work
+        "\u0b"  => calcfun(x -> (clipboard(x); return nothing), 1),
         # delete
         "\e[3~" => (s,o...)-> eof(LineEdit.buffer(s)) ? calcfun((stack) -> stack[1:end-1], -1)(s,o...) : LineEdit.edit_delete(s),
         # tab - swap x & y on the stack
-        "\t" => calcfun((x, y) -> Any[y, x], 2, true),
+        "\t" => calcfun((y, x) -> Any[x, y], 2, true),
         # space / Enter for stack entry
         " " => calcfun(x -> x, -1),
         "\r" => LineEdit.KeyAlias(" "),
@@ -265,6 +311,7 @@ function initiate_calc_repl()
     
     main_mode.keymap_dict = LineEdit.keymap_merge(main_mode.keymap_dict, calc_launch_keymap)
     panel.keymap_dict = LineEdit.keymap_merge(LineEdit.keymap(b), calc_keymap)
+    state.panel = panel
     
     # Finish the input repl panel
     hp.mode_mapping[:input] = inputpanel
@@ -291,6 +338,27 @@ function initiate_calc_repl()
     inputpanel.keymap_dict = LineEdit.keymap(b)
     
     nothing
+end
+
+"""
+    setkeys(keymap::Dict)
+
+Merge `keymap` with the Calc keymap. Use to define or replace keys in the
+calculator. `keymap` is a mapping from a key sequence to a function that 
+defines the operation. Keys and key sequences are defined using Unix-style
+key definitions (I haven't found a good link). Use `^` for a CTRL key modifier
+and `\e` for a Meta or ALT modifier.
+
+See `Calc.calcfun` for a helper function for defining operations on the stack.
+Here is an example:
+
+```julia
+Calc.setkeys(Dict("fp" => Calc.calcfun((y, x) -> 1 / (1/y + 1/x), 2)))
+```
+Returns the new keymap.    
+"""
+function setkeys(keymap)
+    state.panel.keymap_dict = LineEdit.keymap_merge(state.panel.keymap_dict, keymap)
 end
 
 initiate_calc_repl()
