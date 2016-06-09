@@ -7,6 +7,8 @@ line (the REPL). The reverse-polish notation is popular with some scientific
 calculators. See the [HP 48](http://www.ces.clemson.edu/ge/staff/park/Class/ENGR130/Handouts/BasicSkills/Calculators/HP48G/HP48G.html)
 for example.
 
+![calc](calc1.gif)
+
 This package enables a new REPL mode. Use the equals key (`=`) at the start of a
 line to start the calculator. RPN commands operate on a stack that is
 redisplayed after every operation. Use Backspace at a blank prompt to return to
