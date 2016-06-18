@@ -266,9 +266,9 @@ function initiate_calc_repl(repl)
         "ss" => (s, o...) -> input(s, "Variable name> ") do x
                     eval(Main, Expr(:(=), Symbol(x), activestack()[end]))
                 end,
-        # store the whole stack in the prompted variable
+        # store copy of the whole stack in the prompted variable as Vector{Any}
         "sS" => (s, o...) -> input(s, "Variable name> ") do x
-                    eval(Main, Expr(:(=), Symbol(x), activestack()))
+                    eval(Main, Expr(:(=), Symbol(x), copy(activestack().x)))
                 end,
     # general
         # Meta-k - Copy `x` to the clipboard

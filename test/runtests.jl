@@ -151,7 +151,7 @@ testentry("12 ss", "Variable name> ")  # Space is needed because this doesn't re
 testentry("x\n",   "12")
 testentry("=x\n",  "1: 12")
 testentry("sS",    "Variable name> ")
-testentry("y\n",   "-element Calc.CalcStack")
+testentry("y\n",   "-element Array")
 
 # User-defined keys
 Calc.setkeys(Dict("fp" => Calc.calcfun((y, x) -> 1 / (1/y + 1/x), 2)))
