@@ -1,6 +1,7 @@
 module Calc
 
 import Base: LineEdit, REPL
+import Base.LineEdit: terminal
 
 type CalcStack <: AbstractArray{Any, 1}
     x::Array{Any}
@@ -14,23 +15,23 @@ Base.similar(s::CalcStack) = CalcStack()
 Base.push!(s::CalcStack, x) = push!(s.x, x)
 Base.splice!(s::CalcStack, i) = splice!(s.x, i)
 Base.copy(s::CalcStack) = CalcStack(copy(s.x))
-function Base.show(s::CalcStack)
-    println()
-    println("Stack [$(state.usedegrees ? "deg" : "rad")|$(state.usepolar ? "polr" : "rect")]")
+function Base.show(io::IO, s::CalcStack)
+    println(io)
+    println(io, "Stack [$(state.usedegrees ? "deg" : "rad")|$(state.usepolar ? "polr" : "rect")]")
     n = length(s)
     for i in 1:n
-        print(n-i+1, ": ")
-        printelement(s.x[i])
-        println()
+        print(io, n-i+1, ": ")
+        printelement(io, s.x[i])
+        println(io)
     end
     if n == 0 
-        println(".")
+        println(io, ".")
     end
 end    
 
 cs(x) = sprint(showcompact, x)
-printelement(x) = showcompact(x)
-printelement(x::Complex) = state.usepolar ? print("$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : showcompact(x)
+printelement(io::IO, x) = showcompact(io, x)
+printelement(io::IO, x::Complex) = state.usepolar ? print(io, "$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : showcompact(io, x)
 
 type CalcState
     history::Array{CalcStack}
@@ -96,7 +97,7 @@ Returns a function for use in a keymap.
 """
 function calcfun(fun, n = 0, splatoutput = false)
     (s, args...) -> begin
-        println()
+        println(terminal(s))
         stack = copy(activestack())
         b = LineEdit.buffer(s)
         newval = eval(Main, Base.parse_input_line(takebuf_string(b)))
@@ -120,7 +121,7 @@ function calcfun(fun, n = 0, splatoutput = false)
             stack.x = fun(stack.x)
         end
         advance(stack)
-        show(activestack())
+        show(terminal(s), activestack())
         :done
     end
 end
@@ -130,8 +131,7 @@ end
 ## Copyright (c) 2015: Keno Fischer. Licensed under the MIT "Expat" License:
 ##    https://github.com/Keno/Gallium.jl/blob/b4bc668a4cbd0f2d4f63fbdb0597a1264afd7b4d/LICENSE.md
 
-function initiate_calc_repl()
-    repl = Base.active_repl
+function initiate_calc_repl(repl)
     mirepl = isdefined(repl,:mi) ? repl.mi : repl
 
     main_mode = mirepl.interface.modes[1]
@@ -142,10 +142,10 @@ function initiate_calc_repl()
                 if !haskey(s.mode_state, panel)
                     s.mode_state[panel] = LineEdit.init_state(repl.t, panel)
                 end
-                println()
-                println()
-                show(activestack())
-                println()
+                println(terminal(s))
+                println(terminal(s))
+                show(terminal(s), activestack())
+                println(terminal(s))
                 LineEdit.transition(s,panel)
             else
                 LineEdit.edit_insert(s,'=')
@@ -184,7 +184,6 @@ function initiate_calc_repl()
     b = Dict{Any,Any}[skeymap, mk, LineEdit.history_keymap, LineEdit.default_keymap, LineEdit.escape_defaults]
     
     function input(fun::Function, s, prompt::AbstractString)
-        repl = Base.active_repl
         inputpanel.prompt = prompt
         inputpanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
             :( $(try fun(line) catch e warn(e) end) )
@@ -231,9 +230,9 @@ function initiate_calc_repl()
         "IT" => calcfun(x -> state.usedegrees ? atand(x) : atan(x), 1),
         "P" => calcfun(() -> pi, 0),
     # settings
-        "mr" =>  (s, o...) -> (println("\nUsing radians..."); state.usedegrees = false; :done),
-        "md" =>  (s, o...) -> (println("\nUsing degrees..."); state.usedegrees = true; :done),
-        "mp" =>  (s, o...) -> (state.usepolar = !state.usepolar; println("\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); :done),
+        "mr" =>  (s, o...) -> (println(terminal(s), "\nUsing radians..."); state.usedegrees = false; :done),
+        "md" =>  (s, o...) -> (println(terminal(s), "\nUsing degrees..."); state.usedegrees = true; :done),
+        "mp" =>  (s, o...) -> (state.usepolar = !state.usepolar; println(terminal(s), "\nUsing $(state.usepolar ? "polar" : "rectangular") coordinates..."); :done),
     # complex numbers
         "X" => calcfun(complex, 2),
         "IX" => calcfun(x -> [real(x), imag(x)], 1, true),
@@ -289,7 +288,7 @@ function initiate_calc_repl()
                     if state.position > 1
                         state.position -= 1
                     end
-                    show(activestack())
+                    show(terminal(s), activestack())
                     :done
                 end,
         # redo
@@ -297,15 +296,15 @@ function initiate_calc_repl()
                     if state.position < length(state.history)
                         state.position += 1
                     end
-                    show(activestack())
+                    show(terminal(s), activestack())
                     :done
                 end,
         # trigger algebraic entry
         "=" => (s, o...) -> input(s, "calc= ") do line
                     stack = copy(Calc.activestack())
-                    push!(stack, eval(Main, fixrefs(line)))
+                    push!(stack, eval(Main, fixrefs(Base.parse_input_line(line))))
                     Calc.advance(stack)
-                    show(activestack())
+                    show(terminal(s), activestack())
                 end
     )
     
@@ -319,7 +318,6 @@ function initiate_calc_repl()
 
    # Convert _1, _2, ... to stack references    
     fixrefs(x) = x
-    fixrefs(line::AbstractString) = fixrefs(Base.parse_input_line(line))
     fixrefs(e::Expr) = Expr(e.head, Any[fixrefs(a) for a in e.args]...)
     function fixrefs(s::Symbol)
         st = string(s)
@@ -361,6 +359,8 @@ function setkeys(keymap)
     state.panel.keymap_dict = LineEdit.keymap_merge(state.panel.keymap_dict, keymap)
 end
 
-initiate_calc_repl()
+function __init__()
+    isdefined(Base, :active_repl) && initiate_calc_repl(Base.active_repl)
+end
 
 end # module

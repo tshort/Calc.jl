@@ -120,7 +120,7 @@ These trig functions use radian equivalents when in radian mode.
 | key   | operation                              |
 | ----- | ----------                             |
 | `X`   | `complex(y, x)`                        |
-| `IX`  | the real and imaginary partse of `x`   |
+| `IX`  | the real and imaginary parts of `x`    |
 | `Z`   | `y∠x`, polar entry with `x` in degrees |
 | `IZ`  | the magnitude and angle of `x`         |
 | `J`   | `conj(x)`                              |
