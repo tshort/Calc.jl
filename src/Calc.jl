@@ -1,16 +1,19 @@
 module Calc
 
-import Base: LineEdit, REPL
-import Base.LineEdit: terminal
+import Base
+import REPL
+import REPL.LineEdit
+import REPL.LineEdit: terminal
+import Statistics
 
-type CalcStack <: AbstractArray{Any, 1}
+mutable struct CalcStack <: AbstractArray{Any, 1}
     x::Array{Any}
 end
+
 CalcStack() = CalcStack(Any[])
 Base.getindex(s::CalcStack, i) = s.x[i]
 Base.setindex!(s::CalcStack, x, i) = setindex!(s.x, x, i)
 Base.size(s::CalcStack, o...) = size(s.x, o...)
-Base.linearindexing(::Type{CalcStack}) = Base.LinearFast()
 Base.similar(s::CalcStack) = CalcStack()
 Base.push!(s::CalcStack, x) = push!(s.x, x)
 Base.splice!(s::CalcStack, i) = splice!(s.x, i)
@@ -30,10 +33,10 @@ function Base.show(io::IO, s::CalcStack)
 end    
 
 cs(x) = sprint(showcompact, x)
-printelement(io::IO, x) = showcompact(io, x)
-printelement(io::IO, x::Complex) = state.usepolar ? print(io, "$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : showcompact(io, x)
+printelement(io::IO, x) = show(IOContext(io, :compact => true), x)
+printelement(io::IO, x::Complex) = state.usepolar ? print(io, "$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : show(IOContext(io, :compact => true), x)
 
-type CalcState
+mutable struct CalcState
     history::Array{CalcStack}
     panel
     position::Int
@@ -100,7 +103,7 @@ function calcfun(fun, n = 0, splatoutput = false)
         println(terminal(s))
         stack = copy(activestack())
         b = LineEdit.buffer(s)
-        newval = eval(Main, Base.parse_input_line(takebuf_string(b)))
+        newval = Base.eval(Main, Base.parse_input_line(String(take!(b))))
         if newval != nothing
             push!(stack, newval)
             advance(stack)
@@ -136,7 +139,7 @@ function initiate_calc_repl(repl)
 
     main_mode = mirepl.interface.modes[1]
 
-    const calc_launch_keymap = Dict{Any,Any}(
+    calc_launch_keymap = Dict{Any,Any}(
         '=' => function (s,args...)
             if isempty(s)
                 if !haskey(s.mode_state, panel)
@@ -158,7 +161,7 @@ function initiate_calc_repl(repl)
         # Copy colors from the prompt object
         prompt_prefix = Base.text_colors[:blue],
         prompt_suffix = main_mode.prompt_suffix,
-        on_enter = Base.REPL.return_callback)
+        on_enter = REPL.return_callback)
     panel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
         :(  )
     end
@@ -194,7 +197,7 @@ function initiate_calc_repl(repl)
         LineEdit.transition(s, inputpanel)
     end
 
-    const calc_keymap = Dict{Any,Any}(
+    calc_keymap = Dict{Any,Any}(
     # arithmetic
         "+" => calcfun(+, 2),
         "-" => calcfun(-, 2),
@@ -257,18 +260,18 @@ function initiate_calc_repl(repl)
         "u*" => calcfun(prod, 1),
         "uX" => calcfun(maximum, 1),
         "uN" => calcfun(minimum, 1),
-        "uM" => calcfun(mean, 1),
-        "HuM" => calcfun(median, 1),
-        "uS" => calcfun(std, 1),
-        "HuS" => calcfun(var, 1),
+        "uM" => calcfun(Statistics.mean, 1),
+        "HuM" => calcfun(Statistics.median, 1),
+        "uS" => calcfun(Statistics.std, 1),
+        "HuS" => calcfun(Statistics.var, 1),
     # storing/recalling
         # store x in the prompted variable
         "ss" => (s, o...) -> input(s, "Variable name> ") do x
-                    eval(Main, Expr(:(=), Symbol(x), activestack()[end]))
+                    Base.eval(Main, Expr(:(=), Symbol(x), activestack()[end]))
                 end,
         # store copy of the whole stack in the prompted variable as Vector{Any}
         "sS" => (s, o...) -> input(s, "Variable name> ") do x
-                    eval(Main, Expr(:(=), Symbol(x), copy(activestack().x)))
+                    Base.eval(Main, Expr(:(=), Symbol(x), copy(activestack().x)))
                 end,
     # general
         # Meta-k - Copy `x` to the clipboard
@@ -302,7 +305,7 @@ function initiate_calc_repl(repl)
         # trigger algebraic entry
         "=" => (s, o...) -> input(s, "calc= ") do line
                     stack = copy(Calc.activestack())
-                    push!(stack, eval(Main, fixrefs(Base.parse_input_line(line))))
+                    push!(stack, Base.eval(Main, fixrefs(Base.parse_input_line(line))))
                     Calc.advance(stack)
                     show(terminal(s), activestack())
                 end
@@ -324,7 +327,11 @@ function initiate_calc_repl(repl)
         if first(st) != '_'
             return s
         end
-        n = try parse(st[2:end]) catch "" end
+        n = try
+            parse(st[2:end])
+        catch
+            ""
+        end
         if isa(n, Integer) && n > 0
             return :( $activestack()[end - $n + 1] )
         else
