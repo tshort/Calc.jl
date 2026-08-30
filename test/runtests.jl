@@ -112,7 +112,7 @@ testentry("2 3^",  "1: 8")
 testentry("8 3I^", "1: 2.0")
 testentry("4 3fh", "1: 5.0")
 # Trig
-testentry("P",     "1: π = ")
+testentry("P",     "1: π")
 testentry("mr",    "Using radians...")
 testentry("PC",    "[rad|", "1: -1.0")
 testentry("P2/S",  "1: 1.0")
