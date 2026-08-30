@@ -57,12 +57,23 @@ end
 Calc.initiate_calc_repl(repl)
 
 # Tests.
-function testentry(input, outputs...) 
-    write(stdin_write, input)
-    println(input)
-    for o in outputs
-        readuntil(stdout_read, o)
+# Read until `target` appears, but give up after `timeout` seconds instead of
+# blocking forever. A hang here means the REPL never produced the expected
+# output, so report which input/target failed rather than stalling CI.
+function readuntil_timeout(io, target::AbstractString; timeout = 30.0)
+    t = @async readuntil(io, target)
+    if timedwait(() -> istaskdone(t), timeout) === :timed_out
+        error("timed out after $(timeout)s waiting for $(repr(target))")
     end
+    return fetch(t)
+end
+
+function testentry(input, outputs...)
+    write(stdin_write, input)
+    for o in outputs
+        readuntil_timeout(stdout_read, o)
+    end
+    println("OK: ", repr(input))
 end
     
 # General
