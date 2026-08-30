@@ -4,7 +4,7 @@ using Calc
 
 # Setup. From package LispREPL that in turn came from the Julia base repo.
 
-mutable struct FakeTerminal <: Base.Terminals.UnixTerminal
+mutable struct FakeTerminal <: REPL.Terminals.UnixTerminal
     in_stream::Base.IO
     out_stream::Base.IO
     err_stream::Base.IO
@@ -14,9 +14,9 @@ mutable struct FakeTerminal <: Base.Terminals.UnixTerminal
         new(stdin,stdout,stderr,hascolor,false)
 end
 
-Base.Terminals.hascolor(t::FakeTerminal) = t.hascolor
-Base.Terminals.raw!(t::FakeTerminal, raw::Bool) = t.raw = raw
-Base.Terminals.size(t::FakeTerminal) = (24, 80)
+REPL.Terminals.hascolor(t::FakeTerminal) = t.hascolor
+REPL.Terminals.raw!(t::FakeTerminal, raw::Bool) = t.raw = raw
+REPL.Terminals.size(t::FakeTerminal) = (24, 80)
 
 function fake_repl()
     # Use pipes so we can easily do blocking reads
