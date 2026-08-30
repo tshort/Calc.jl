@@ -216,7 +216,8 @@ function initiate_calc_repl(repl)
     function input(fun::Function, s, prompt::AbstractString)
         inputpanel.prompt = prompt
         inputpanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
-            :( $(try fun(line) catch e (@warn e; nothing) end) )
+            local result = try fun(line) catch e; @warn e; nothing end
+            :( $(result) )
         end
         if !haskey(s.mode_state, inputpanel)
             s.mode_state[inputpanel] = LineEdit.init_state(repl.t, inputpanel)
