@@ -1,9 +1,10 @@
-using Base.Test
+using Test
+using REPL
 using Calc
 
 # Setup. From package LispREPL that in turn came from the Julia base repo.
 
-type FakeTerminal <: Base.Terminals.UnixTerminal
+mutable struct FakeTerminal <: Base.Terminals.UnixTerminal
     in_stream::Base.IO
     out_stream::Base.IO
     err_stream::Base.IO
@@ -24,22 +25,22 @@ function fake_repl()
     stdin_read,stdin_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stdout_read,stdout_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stderr_read,stderr_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
-    Base.link_pipe(stdin_read,true,stdin_write,true)
-    Base.link_pipe(stdout_read,true,stdout_write,true)
-    Base.link_pipe(stderr_read,true,stderr_write,true)
+    Base.link_pipe!(stdin_read, stdin_write; reader_supports_async=true, writer_supports_async=true)
+    Base.link_pipe!(stdout_read, stdout_write; reader_supports_async=true, writer_supports_async=true)
+    Base.link_pipe!(stderr_read, stderr_write; reader_supports_async=true, writer_supports_async=true)
 
-    repl = Base.REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write))
+    repl = REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write))
     stdin_write, stdout_read, stderr_read, repl
 end
 
 # Writing ^C to the repl will cause sigint, so let's not die on that
-ccall(:jl_exit_on_sigint, Void, (Cint,), 0)
+ccall(:jl_exit_on_sigint, Nothing, (Cint,), 0)
 stdin_write, stdout_read, stderr_read, repl = fake_repl()
 
-repl.specialdisplay = Base.REPL.REPLDisplay(repl)
+repl.specialdisplay = REPL.REPLDisplay(repl)
 repl.history_file = false
 
-repltask = @async Base.REPL.run_repl(repl)
+repltask = @async REPL.run_repl(repl)
 
 sendrepl(cmd) = write(stdin_write,"inc || wait(b); r = $cmd; notify(c); r\r")
 

@@ -35,7 +35,7 @@ function Base.show(io::IO, s::CalcStack)
     end
 end    
 
-cs(x) = sprint(showcompact, x)
+cs(x) = sprint(show, x; context = :compact => true)
 printelement(io::IO, x) = show(IOContext(io, :compact => true), x)
 printelement(io::IO, x::Complex) = state.usepolar ? print(io, "$(cs(abs(x)))∠$(cs(rad2deg(angle(x))))°") : show(IOContext(io, :compact => true), x)
 
@@ -50,6 +50,12 @@ end
 const state = CalcState(CalcStack[CalcStack()], 0, 1, true, false)
 
 activestack() = state.history[state.position]
+
+function _parse_eval(b)
+    s = strip(String(take!(b)))
+    isempty(s) && return nothing
+    Base.eval(Main, Meta.parseall(s))
+end
 
 function advance(stack)
     if stack != activestack()
@@ -106,17 +112,17 @@ function calcfun(fun, n = 0, splatoutput = false)
         println(terminal(s))
         stack = copy(activestack())
         b = LineEdit.buffer(s)
-        newval = Base.eval(Main, Base.parse_input_line(String(take!(b))))
-        if newval != nothing
+        newval = _parse_eval(b)
+        if !isnothing(newval)
             push!(stack, newval)
             advance(stack)
             stack = copy(stack)
         end
-        if n ≥ 0 
+        if n ≥ 0
             ns = length(stack)
             args = splice!(stack, ns-n+1:ns)
             val = fun(args...)
-            if val != nothing
+            if !isnothing(val)
                 if splatoutput
                     push!(stack, val...)
                 else
@@ -138,8 +144,8 @@ function enterkey()
         println(terminal(s))
         stack = copy(activestack())
         b = LineEdit.buffer(s)
-        newval = Base.eval(Main, Base.parse_input_line(String(take!(b))))
-        if newval != nothing
+        newval = _parse_eval(b)
+        if !isnothing(newval)
             push!(stack, newval)
         else
             push!(stack, stack[end])
@@ -210,7 +216,7 @@ function initiate_calc_repl(repl)
     function input(fun::Function, s, prompt::AbstractString)
         inputpanel.prompt = prompt
         inputpanel.on_done = REPL.respond(repl, panel; pass_empty = false) do line
-            :( $(try fun(line) catch e warn(e) end) )
+            :( $(try fun(line) catch e (@warn e; nothing) end) )
         end
         if !haskey(s.mode_state, inputpanel)
             s.mode_state[inputpanel] = LineEdit.init_state(repl.t, inputpanel)
@@ -326,7 +332,7 @@ function initiate_calc_repl(repl)
         # trigger algebraic entry
         "=" => (s, o...) -> input(s, "calc= ") do line
                     stack = copy(Calc.activestack())
-                    push!(stack, Base.eval(Main, fixrefs(Base.parse_input_line(line))))
+                    push!(stack, Base.eval(Main, fixrefs(Meta.parseall(line))))
                     Calc.advance(stack)
                     show(terminal(s), activestack())
                 end
