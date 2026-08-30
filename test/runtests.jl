@@ -25,9 +25,9 @@ function fake_repl()
     stdin_read,stdin_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stdout_read,stdout_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stderr_read,stderr_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
-    Base.link_pipe!(stdin_read, stdin_write; reader_supports_async=true, writer_supports_async=true)
-    Base.link_pipe!(stdout_read, stdout_write; reader_supports_async=true, writer_supports_async=true)
-    Base.link_pipe!(stderr_read, stderr_write; reader_supports_async=true, writer_supports_async=true)
+    Base.link_pipe!(stdin_read, true, stdin_write, true)
+    Base.link_pipe!(stdout_read, true, stdout_write, true)
+    Base.link_pipe!(stderr_read, true, stderr_write, true)
 
     repl = REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write))
     stdin_write, stdout_read, stderr_read, repl
