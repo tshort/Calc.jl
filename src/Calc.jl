@@ -391,7 +391,9 @@ Calc.setkeys(Dict("fp" => Calc.calcfun((y, x) -> 1 / (1/y + 1/x), 2)))
 Returns the new keymap.    
 """
 function setkeys(keymap)
-    state.panel.keymap_dict = LineEdit.keymap_merge(state.panel.keymap_dict, keymap)
+    # keymap_merge requires a Dict{Any,Any}; a user-supplied literal such as
+    # Dict("fp" => ...) infers as Dict{String,...}, so convert it here.
+    state.panel.keymap_dict = LineEdit.keymap_merge(state.panel.keymap_dict, Dict{Any,Any}(keymap))
 end
 
 function __init__()
