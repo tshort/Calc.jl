@@ -1,0 +1,3 @@
+[deps]
+REPL = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
+Test = "8dfed614-e22c-358e-cf25-08a387d69785"
