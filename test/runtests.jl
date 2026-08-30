@@ -29,7 +29,7 @@ function fake_repl()
     Base.link_pipe!(stdout_read, true, stdout_write, true)
     Base.link_pipe!(stderr_read, true, stderr_write, true)
 
-    repl = REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write))
+    repl = REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write), true)
     stdin_write, stdout_read, stderr_read, repl
 end
 
