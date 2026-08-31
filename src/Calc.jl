@@ -142,7 +142,9 @@ function enterkey()
         if newval != nothing
             push!(stack, newval)
         else
-            push!(stack, stack[end])
+            if length(stack)>0
+                push!(stack, stack[end])
+            end
         end
         advance(stack)
         show(terminal(s), activestack())
