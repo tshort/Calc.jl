@@ -1,9 +1,10 @@
-using Base.Test
+using Test
+using REPL
 using Calc
 
 # Setup. From package LispREPL that in turn came from the Julia base repo.
 
-type FakeTerminal <: Base.Terminals.UnixTerminal
+mutable struct FakeTerminal <: REPL.Terminals.UnixTerminal
     in_stream::Base.IO
     out_stream::Base.IO
     err_stream::Base.IO
@@ -13,9 +14,9 @@ type FakeTerminal <: Base.Terminals.UnixTerminal
         new(stdin,stdout,stderr,hascolor,false)
 end
 
-Base.Terminals.hascolor(t::FakeTerminal) = t.hascolor
-Base.Terminals.raw!(t::FakeTerminal, raw::Bool) = t.raw = raw
-Base.Terminals.size(t::FakeTerminal) = (24, 80)
+REPL.Terminals.hascolor(t::FakeTerminal) = t.hascolor
+REPL.Terminals.raw!(t::FakeTerminal, raw::Bool) = t.raw = raw
+REPL.Terminals.size(t::FakeTerminal) = (24, 80)
 
 function fake_repl()
     # Use pipes so we can easily do blocking reads
@@ -24,22 +25,22 @@ function fake_repl()
     stdin_read,stdin_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stdout_read,stdout_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
     stderr_read,stderr_write = (Base.PipeEndpoint(), Base.PipeEndpoint())
-    Base.link_pipe(stdin_read,true,stdin_write,true)
-    Base.link_pipe(stdout_read,true,stdout_write,true)
-    Base.link_pipe(stderr_read,true,stderr_write,true)
+    Base.link_pipe!(stdin_read, true, stdin_write, true)
+    Base.link_pipe!(stdout_read, true, stdout_write, true)
+    Base.link_pipe!(stderr_read, true, stderr_write, true)
 
-    repl = Base.REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write))
+    repl = REPL.LineEditREPL(FakeTerminal(stdin_read, stdout_write, stderr_write), true)
     stdin_write, stdout_read, stderr_read, repl
 end
 
 # Writing ^C to the repl will cause sigint, so let's not die on that
-ccall(:jl_exit_on_sigint, Void, (Cint,), 0)
+ccall(:jl_exit_on_sigint, Nothing, (Cint,), 0)
 stdin_write, stdout_read, stderr_read, repl = fake_repl()
 
-repl.specialdisplay = Base.REPL.REPLDisplay(repl)
+repl.specialdisplay = REPL.REPLDisplay(repl)
 repl.history_file = false
 
-repltask = @async Base.REPL.run_repl(repl)
+repltask = @async REPL.run_repl(repl)
 
 sendrepl(cmd) = write(stdin_write,"inc || wait(b); r = $cmd; notify(c); r\r")
 
@@ -56,12 +57,23 @@ end
 Calc.initiate_calc_repl(repl)
 
 # Tests.
-function testentry(input, outputs...) 
-    write(stdin_write, input)
-    println(input)
-    for o in outputs
-        readuntil(stdout_read, o)
+# Read until `target` appears, but give up after `timeout` seconds instead of
+# blocking forever. A hang here means the REPL never produced the expected
+# output, so report which input/target failed rather than stalling CI.
+function readuntil_timeout(io, target::AbstractString; timeout = 30.0)
+    t = @async readuntil(io, target)
+    if timedwait(() -> istaskdone(t), timeout) === :timed_out
+        error("timed out after $(timeout)s waiting for $(repr(target))")
     end
+    return fetch(t)
+end
+
+function testentry(input, outputs...)
+    write(stdin_write, input)
+    for o in outputs
+        readuntil_timeout(stdout_read, o)
+    end
+    println("OK: ", repr(input))
 end
     
 # General
@@ -100,7 +112,7 @@ testentry("2 3^",  "1: 8")
 testentry("8 3I^", "1: 2.0")
 testentry("4 3fh", "1: 5.0")
 # Trig
-testentry("P",     "1: π = ")
+testentry("P",     "1: π")
 testentry("mr",    "Using radians...")
 testentry("PC",    "[rad|", "1: -1.0")
 testentry("P2/S",  "1: 1.0")

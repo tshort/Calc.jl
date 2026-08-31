@@ -1,5 +1,7 @@
 ## Calc - an RPN calculator for the Julia REPL
 
+[![CI](https://github.com/akabla/Calc.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/akabla/Calc.jl/actions/workflows/CI.yml)
+
 This Julia package implements an RPN calculator for use at the Julia command
 line (the REPL). The reverse-polish notation is popular with some scientific
 calculators. See the [HP 48](http://www.ces.clemson.edu/ge/staff/park/Class/ENGR130/Handouts/BasicSkills/Calculators/HP48G/HP48G.html)
