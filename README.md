@@ -62,6 +62,7 @@ Many multi-key sequences start with prefixes with the following meanings:
 | ---------     | --------------------------- |
 | `<space>`     | Enter value on the stack    |
 | `<enter>`     | Enter value on the stack    |
+|               | ... or duplicate last value |
 | `<del>`       | Delete `x` from the stack   |
 | `<tab>`       | Swap `x` & `y` on the stack |
 | `U`           | Undo                        |
