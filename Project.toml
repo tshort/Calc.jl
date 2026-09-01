@@ -1,6 +1,6 @@
 name = "Calc"
 uuid = "221dce02-7e96-5d1b-a637-f113167531ab"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["tshort.rlists@gmail.com"]
 
 [deps]
